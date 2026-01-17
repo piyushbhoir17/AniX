@@ -23,6 +23,3 @@ plugins {
 }
 
 include ":app"
-
-// Ensure the app is evaluated first so flutter properties are available
-project(':app').projectDir = new File(rootDir, 'app')
