@@ -34,7 +34,7 @@ dependencies:
   permission_handler: ^11.3.1
 
   # Storage Access Framework
-  saf: ^2.0.0
+  saf: ^1.0.4
 
   # Image Caching
   cached_network_image: ^3.3.1
