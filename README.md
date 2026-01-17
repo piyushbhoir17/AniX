@@ -2,7 +2,7 @@
 
 An open-source Flutter app to watch anime in Hindi with offline download support.
 
-![Flutter](https://img.shields.io/badge/Flutter-3.24-blue?logo=flutter)
+![Flutter](https://img.shields.io/badge/Flutter-3.38.7-blue?logo=flutter)
 ![Platform](https://img.shields.io/badge/Platform-Android%20|%20iOS%20|%20Web-green)
 ![License](https://img.shields.io/badge/License-MIT-yellow)
 
@@ -51,9 +51,9 @@ lib/
 
 ## 🛠️ Tech Stack
 
-- **Framework**: Flutter 3.24+
+- **Framework**: Flutter 3.38.7+
 - **State Management**: Riverpod
-- **Database**: Isar
+- **Database**: Isar Community
 - **Video Player**: media_kit
 - **WebView**: flutter_inappwebview
 - **HTTP**: Dio
@@ -62,7 +62,7 @@ lib/
 
 ### Prerequisites
 
-- Flutter SDK 3.24+
+- Flutter SDK 3.38.7+
 - Android Studio / VS Code
 - Android SDK (for Android builds)
 
