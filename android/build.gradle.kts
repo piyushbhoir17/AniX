@@ -19,17 +19,3 @@ subprojects {
 tasks.register<Delete>("clean") {
     delete(rootProject.layout.buildDirectory)
 }
-
-// Fix for plugins that don't specify compileSdkVersion
-subprojects {
-    afterEvaluate {
-        if (project.hasProperty("android")) {
-            val android = project.extensions.findByName("android")
-            if (android is com.android.build.gradle.LibraryExtension) {
-                if (android.compileSdk == null) {
-                    android.compileSdk = 36
-                }
-            }
-        }
-    }
-}
