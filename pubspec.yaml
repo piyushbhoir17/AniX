@@ -21,7 +21,7 @@ dependencies:
 
   # Networking
   dio: ^5.7.0
-  connectivity_plus: ^5.0.2
+  connectivity_plus: ^6.1.1
 
   # WebView for scraping
   flutter_inappwebview: ^6.1.5
@@ -38,7 +38,7 @@ dependencies:
   saf: ^1.0.4
 
   # Image Caching
-  cached_network_image: ^3.3.1
+  cached_network_image: ^3.4.1
 
   # UI Components
   flutter_animate: ^4.5.2
@@ -71,11 +71,6 @@ dev_dependencies:
   flutter_lints: ^5.0.0
   build_runner: ^2.4.13
   drift_dev: ^2.22.1
-
-dependency_overrides:
-  # Force compatible versions to avoid AGP 8.x issues
-  package_info_plus: ^8.0.0
-  wakelock_plus: ^1.2.8
 
 flutter:
   uses-material-design: true
