@@ -1,14 +1,10 @@
-import 'package:flutter/material.dart' hide ThemeMode;
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../data/database/database.dart';
 import '../data/database/repositories/anime_repository.dart';
 import '../data/database/repositories/episode_repository.dart';
 import '../data/database/repositories/download_repository.dart';
 import '../data/database/repositories/settings_repository.dart';
-import '../data/models/anime.dart';
-import '../data/models/episode.dart';
-import '../data/models/download_task.dart';
-import '../data/models/app_settings.dart';
 import '../data/services/download_manager.dart';
 import '../data/services/scraper_service.dart';
 import '../data/services/storage_service.dart';
@@ -28,14 +24,14 @@ final storageServiceProvider = Provider((ref) => StorageService.instance);
 
 // ============ Settings Provider ============
 
-final settingsProvider = StateNotifierProvider<SettingsNotifier, AppSettings>((ref) {
+final settingsProvider = StateNotifierProvider<SettingsNotifier, AppSettingsTableData?>((ref) {
   return SettingsNotifier(ref.read(settingsRepositoryProvider));
 });
 
-class SettingsNotifier extends StateNotifier<AppSettings> {
+class SettingsNotifier extends StateNotifier<AppSettingsTableData?> {
   final SettingsRepository _repository;
 
-  SettingsNotifier(this._repository) : super(AppSettings.defaults()) {
+  SettingsNotifier(this._repository) : super(null) {
     _loadSettings();
   }
 
@@ -43,7 +39,7 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
     state = await _repository.getSettings();
   }
 
-  Future<void> setThemeMode(ThemeMode mode) async {
+  Future<void> setThemeMode(String mode) async {
     await _repository.setThemeMode(mode);
     state = await _repository.getSettings();
   }
@@ -86,7 +82,17 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
 // ============ Theme Provider ============
 
 final themeModeProvider = Provider<ThemeMode>((ref) {
-  return ref.watch(settingsProvider).themeMode;
+  final settings = ref.watch(settingsProvider);
+  if (settings == null) return ThemeMode.system;
+  
+  switch (settings.themeMode) {
+    case 'light':
+      return ThemeMode.light;
+    case 'dark':
+      return ThemeMode.dark;
+    default:
+      return ThemeMode.system;
+  }
 });
 
 // ============ Anime Providers ============

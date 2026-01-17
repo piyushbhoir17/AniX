@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../core/constants/app_constants.dart';
+import '../../data/database/database.dart';
 import '../../providers/app_providers.dart';
 import '../../widgets/anime_grid.dart';
 import '../../widgets/empty_state.dart';
@@ -69,7 +69,7 @@ class HomeScreen extends ConsumerWidget {
     );
   }
 
-  Map<String, double> _buildProgressMap(List animeList) {
+  Map<String, double> _buildProgressMap(List<Anime> animeList) {
     final map = <String, double>{};
     for (final anime in animeList) {
       if (anime.totalEpisodes != null && anime.totalEpisodes! > 0) {

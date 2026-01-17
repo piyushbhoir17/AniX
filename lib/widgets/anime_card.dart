@@ -3,7 +3,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../core/theme/app_colors.dart';
 import '../core/theme/app_theme.dart';
-import '../data/models/anime.dart';
+import '../data/database/database.dart';
 
 /// Anime card widget for grid display
 class AnimeCard extends StatelessWidget {

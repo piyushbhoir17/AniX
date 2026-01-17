@@ -1,6 +1,5 @@
-import 'package:isar/isar.dart';
+import 'package:drift/drift.dart';
 import '../database.dart';
-import '../../models/app_settings.dart';
 import '../../../core/utils/logger.dart';
 
 /// Repository for App Settings operations
@@ -8,81 +7,84 @@ class SettingsRepository {
   SettingsRepository._();
   static final SettingsRepository instance = SettingsRepository._();
 
-  Isar get _db => AppDatabase.instance;
+  AppDatabase get _db => AppDatabase.instance;
 
-  /// Get current settings
-  Future<AppSettings> getSettings() async {
-    final settings = await _db.appSettings.where().findFirst();
-    return settings ?? AppSettings.defaults();
+  /// Get current settings (always returns first row)
+  Future<AppSettingsTableData> getSettings() async {
+    final result = await _db.select(_db.appSettingsTable).getSingleOrNull();
+    if (result == null) {
+      // Create default settings if not exists
+      await _db.into(_db.appSettingsTable).insert(AppSettingsTableCompanion.insert());
+      return (await _db.select(_db.appSettingsTable).getSingle());
+    }
+    return result;
   }
 
-  /// Save settings
-  Future<void> saveSettings(AppSettings settings) async {
-    await _db.writeTxn(() async {
-      await _db.appSettings.put(settings);
-    });
-    AppLogger.i('Settings saved');
+  /// Update settings
+  Future<void> _updateSettings(AppSettingsTableCompanion settings) async {
+    final current = await getSettings();
+    await (_db.update(_db.appSettingsTable)..where((s) => s.id.equals(current.id)))
+        .write(settings);
+    AppLogger.i('Settings updated');
   }
 
   /// Update theme mode
-  Future<void> setThemeMode(ThemeMode mode) async {
-    final settings = await getSettings();
-    settings.themeMode = mode;
-    await saveSettings(settings);
+  Future<void> setThemeMode(String mode) async {
+    await _updateSettings(AppSettingsTableCompanion(themeMode: Value(mode)));
   }
 
   /// Update default quality
   Future<void> setDefaultQuality(String? quality, {bool save = false}) async {
-    final settings = await getSettings();
-    settings.defaultQuality = quality;
-    settings.saveQualityPreference = save;
-    await saveSettings(settings);
+    await _updateSettings(AppSettingsTableCompanion(
+      defaultQuality: Value(quality),
+      saveQualityPreference: Value(save),
+    ));
   }
 
   /// Update default language
   Future<void> setDefaultLanguage(String? language, {bool save = false}) async {
-    final settings = await getSettings();
-    settings.defaultLanguage = language;
-    settings.saveLanguagePreference = save;
-    await saveSettings(settings);
+    await _updateSettings(AppSettingsTableCompanion(
+      defaultLanguage: Value(language),
+      saveLanguagePreference: Value(save),
+    ));
   }
 
   /// Update SAF folder
   Future<void> setSafFolder(String? uri, String? path) async {
-    final settings = await getSettings();
-    settings.safFolderUri = uri;
-    settings.downloadPath = path;
-    settings.storagePermissionGranted = uri != null;
-    await saveSettings(settings);
+    await _updateSettings(AppSettingsTableCompanion(
+      safFolderUri: Value(uri),
+      downloadPath: Value(path),
+      storagePermissionGranted: Value(uri != null),
+    ));
   }
 
   /// Update notification permission status
   Future<void> setNotificationPermission(bool granted) async {
-    final settings = await getSettings();
-    settings.notificationPermissionGranted = granted;
-    await saveSettings(settings);
+    await _updateSettings(AppSettingsTableCompanion(
+      notificationPermissionGranted: Value(granted),
+    ));
   }
 
   /// Mark permissions as skipped
   Future<void> setPermissionsSkipped(bool skipped) async {
-    final settings = await getSettings();
-    settings.permissionsSkipped = skipped;
-    await saveSettings(settings);
+    await _updateSettings(AppSettingsTableCompanion(
+      permissionsSkipped: Value(skipped),
+    ));
   }
 
   /// Mark first launch complete
   Future<void> setFirstLaunchComplete() async {
-    final settings = await getSettings();
-    settings.isFirstLaunch = false;
-    settings.lastOpenedAt = DateTime.now();
-    await saveSettings(settings);
+    await _updateSettings(AppSettingsTableCompanion(
+      isFirstLaunch: const Value(false),
+      lastOpenedAt: Value(DateTime.now()),
+    ));
   }
 
   /// Update last opened timestamp
   Future<void> updateLastOpened() async {
-    final settings = await getSettings();
-    settings.lastOpenedAt = DateTime.now();
-    await saveSettings(settings);
+    await _updateSettings(AppSettingsTableCompanion(
+      lastOpenedAt: Value(DateTime.now()),
+    ));
   }
 
   /// Update download settings
@@ -92,12 +94,12 @@ class SettingsRepository {
     bool? downloadOnWifiOnly,
     bool? autoResumeDownloads,
   }) async {
-    final settings = await getSettings();
-    if (parallelDownloads != null) settings.parallelDownloads = parallelDownloads;
-    if (parallelSegments != null) settings.parallelSegments = parallelSegments;
-    if (downloadOnWifiOnly != null) settings.downloadOnWifiOnly = downloadOnWifiOnly;
-    if (autoResumeDownloads != null) settings.autoResumeDownloads = autoResumeDownloads;
-    await saveSettings(settings);
+    await _updateSettings(AppSettingsTableCompanion(
+      parallelDownloads: parallelDownloads != null ? Value(parallelDownloads) : const Value.absent(),
+      parallelSegments: parallelSegments != null ? Value(parallelSegments) : const Value.absent(),
+      downloadOnWifiOnly: downloadOnWifiOnly != null ? Value(downloadOnWifiOnly) : const Value.absent(),
+      autoResumeDownloads: autoResumeDownloads != null ? Value(autoResumeDownloads) : const Value.absent(),
+    ));
   }
 
   /// Update player settings
@@ -106,10 +108,10 @@ class SettingsRepository {
     double? playbackSpeed,
     bool? rememberPlaybackPosition,
   }) async {
-    final settings = await getSettings();
-    if (autoPlayNext != null) settings.autoPlayNext = autoPlayNext;
-    if (playbackSpeed != null) settings.playbackSpeed = playbackSpeed;
-    if (rememberPlaybackPosition != null) settings.rememberPlaybackPosition = rememberPlaybackPosition;
-    await saveSettings(settings);
+    await _updateSettings(AppSettingsTableCompanion(
+      autoPlayNext: autoPlayNext != null ? Value(autoPlayNext) : const Value.absent(),
+      playbackSpeed: playbackSpeed != null ? Value(playbackSpeed) : const Value.absent(),
+      rememberPlaybackPosition: rememberPlaybackPosition != null ? Value(rememberPlaybackPosition) : const Value.absent(),
+    ));
   }
 }

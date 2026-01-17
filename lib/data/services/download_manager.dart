@@ -1,17 +1,14 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:isolate';
 import 'package:dio/dio.dart';
+import 'package:drift/drift.dart';
 import 'package:uuid/uuid.dart';
 import '../../core/constants/app_constants.dart';
-import '../../core/errors/app_exception.dart';
 import '../../core/utils/logger.dart';
+import '../database/database.dart';
 import '../database/repositories/download_repository.dart';
 import '../database/repositories/episode_repository.dart';
 import '../database/repositories/settings_repository.dart';
-import '../models/download_task.dart';
-import '../models/download_segment.dart';
-import '../models/episode.dart';
 import '../models/m3u8_models.dart';
 import 'm3u8_parser.dart';
 import 'storage_service.dart';
@@ -70,7 +67,7 @@ class DownloadManager {
     );
 
     // Create download task
-    final task = DownloadTask.create(
+    final task = await _downloadRepository.createTask(
       taskId: _uuid.v4(),
       animeId: animeId,
       animeTitle: animeTitle,
@@ -85,13 +82,11 @@ class DownloadManager {
       referer: referer,
     );
 
-    await _downloadRepository.saveTask(task);
-
     // Update episode status
     await _episodeRepository.updateDownloadStatus(
       animeId,
       episodeNumber,
-      status: DownloadStatus.queued,
+      status: 'queued',
     );
 
     AppLogger.i('Created download task: ${task.taskId}');
@@ -107,14 +102,14 @@ class DownloadManager {
     _cancelTokens[taskId]?.cancel('Paused by user');
     _cancelTokens.remove(taskId);
     
-    await _downloadRepository.updateTaskStatus(taskId, TaskStatus.paused);
+    await _downloadRepository.updateTaskStatus(taskId, 'paused');
     
     final task = await _downloadRepository.getTaskById(taskId);
     if (task != null) {
       await _episodeRepository.updateDownloadStatus(
         task.animeId,
         task.episodeNumber,
-        status: DownloadStatus.paused,
+        status: 'paused',
       );
     }
     
@@ -123,14 +118,14 @@ class DownloadManager {
 
   /// Resume a paused download
   Future<void> resumeDownload(String taskId) async {
-    await _downloadRepository.updateTaskStatus(taskId, TaskStatus.queued);
+    await _downloadRepository.updateTaskStatus(taskId, 'queued');
     
     final task = await _downloadRepository.getTaskById(taskId);
     if (task != null) {
       await _episodeRepository.updateDownloadStatus(
         task.animeId,
         task.episodeNumber,
-        status: DownloadStatus.queued,
+        status: 'queued',
       );
     }
     
@@ -154,7 +149,7 @@ class DownloadManager {
       await _episodeRepository.updateDownloadStatus(
         task.animeId,
         task.episodeNumber,
-        status: DownloadStatus.none,
+        status: 'none',
       );
     }
 
@@ -185,7 +180,7 @@ class DownloadManager {
 
         // Get next queued task
         final queuedTasks = await _downloadRepository.getActiveTasks();
-        final pendingTasks = queuedTasks.where((t) => t.status == TaskStatus.queued).toList();
+        final pendingTasks = queuedTasks.where((t) => t.status == 'queued').toList();
 
         if (pendingTasks.isEmpty) {
           break;
@@ -217,11 +212,11 @@ class DownloadManager {
 
     try {
       // Update status to downloading
-      await _downloadRepository.updateTaskStatus(task.taskId, TaskStatus.downloading);
+      await _downloadRepository.updateTaskStatus(task.taskId, 'downloading');
       await _episodeRepository.updateDownloadStatus(
         task.animeId,
         task.episodeNumber,
-        status: DownloadStatus.downloading,
+        status: 'downloading',
       );
 
       // Fetch media playlist
@@ -237,29 +232,37 @@ class DownloadManager {
       final existingSegments = await _downloadRepository.getSegmentsForTask(task.taskId);
       if (existingSegments.isEmpty) {
         final segments = mediaPlaylist.segments.map((seg) {
-          return DownloadSegment.create(
+          return DownloadSegmentsCompanion.insert(
             taskId: task.taskId,
             segmentIndex: seg.index,
             segmentUrl: seg.url,
             localPath: _storageService.getSegmentPath(segmentsFolder, seg.index),
-            duration: seg.duration,
+            duration: Value(seg.duration),
           );
         }).toList();
 
         await _downloadRepository.saveSegments(segments);
 
         // Update task with total segments
-        task.totalSegments = segments.length;
-        await _downloadRepository.saveTask(task);
+        await _downloadRepository.updateTaskProgress(
+          task.taskId,
+          downloadedSegments: 0,
+          downloadedBytes: 0,
+          totalSegments: segments.length,
+        );
       }
 
+      // Refresh task data
+      final updatedTask = await _downloadRepository.getTaskById(task.taskId);
+      if (updatedTask == null) return;
+
       // Download segments in parallel
-      await _downloadSegments(task, cancelToken);
+      await _downloadSegments(updatedTask, cancelToken);
 
       // Verify all segments downloaded
       final completedCount = await _downloadRepository.countCompletedSegments(task.taskId);
-      if (completedCount < task.totalSegments) {
-        throw DownloadException(message: 'Not all segments downloaded');
+      if (completedCount < updatedTask.totalSegments) {
+        throw Exception('Not all segments downloaded');
       }
 
       // Create local master.m3u8
@@ -268,21 +271,21 @@ class DownloadManager {
       await _storageService.createLocalMaster(task.downloadFolder, segmentPaths);
 
       // Update status to completed
-      await _downloadRepository.updateTaskStatus(task.taskId, TaskStatus.completed);
+      await _downloadRepository.updateTaskStatus(task.taskId, 'completed');
       await _episodeRepository.updateDownloadStatus(
         task.animeId,
         task.episodeNumber,
-        status: DownloadStatus.completed,
+        status: 'completed',
         downloadPath: task.downloadFolder,
       );
 
       _emitProgress(task.taskId, DownloadProgress(
         taskId: task.taskId,
         progress: 1.0,
-        downloadedBytes: task.downloadedBytes,
-        totalBytes: task.totalBytes,
+        downloadedBytes: updatedTask.downloadedBytes,
+        totalBytes: updatedTask.totalBytes,
         speed: 0,
-        status: TaskStatus.completed,
+        status: 'completed',
       ));
 
       AppLogger.i('Download completed: ${task.taskId}');
@@ -337,7 +340,7 @@ class DownloadManager {
         if (cancelToken.isCancelled) return;
 
         try {
-          await _downloadRepository.updateSegmentStatus(segment.id, SegmentStatus.downloading);
+          await _downloadRepository.updateSegmentStatus(segment.id, 'downloading');
 
           final response = await _dio.download(
             segment.segmentUrl,
@@ -349,9 +352,6 @@ class DownloadManager {
                 if (task.cookies != null) 'Cookie': task.cookies!,
               },
             ),
-            onReceiveProgress: (received, total) {
-              // Update segment progress
-            },
           );
 
           if (response.statusCode == 200) {
@@ -360,7 +360,7 @@ class DownloadManager {
             
             await _downloadRepository.updateSegmentStatus(
               segment.id,
-              SegmentStatus.completed,
+              'completed',
               downloadedBytes: fileSize,
               fileSize: fileSize,
             );
@@ -378,7 +378,7 @@ class DownloadManager {
               downloadedBytes: downloadedBytes,
               totalBytes: task.totalBytes,
               speed: speed.toInt(),
-              status: TaskStatus.downloading,
+              status: 'downloading',
             ));
 
             // Update task progress
@@ -393,7 +393,7 @@ class DownloadManager {
           
           await _downloadRepository.updateSegmentStatus(
             segment.id,
-            SegmentStatus.failed,
+            'failed',
             errorMessage: e.toString(),
           );
           AppLogger.w('Segment ${segment.segmentIndex} failed: $e');
@@ -406,36 +406,38 @@ class DownloadManager {
   Future<void> _handleDownloadError(DownloadTask task, dynamic error, [StackTrace? stack]) async {
     AppLogger.e('Download error: ${task.taskId}', error, stack);
     
-    task.retryCount++;
     final errorMessage = error.toString();
 
     if (task.retryCount < AppConstants.maxRetries) {
       // Retry later
       await _downloadRepository.updateTaskStatus(
         task.taskId,
-        TaskStatus.queued,
+        'queued',
         errorMessage: errorMessage,
       );
     } else {
       // Mark as failed
       await _downloadRepository.updateTaskStatus(
         task.taskId,
-        TaskStatus.failed,
+        'failed',
         errorMessage: errorMessage,
       );
       await _episodeRepository.updateDownloadStatus(
         task.animeId,
         task.episodeNumber,
-        status: DownloadStatus.failed,
+        status: 'failed',
       );
 
+      final updatedTask = await _downloadRepository.getTaskById(task.taskId);
       _emitProgress(task.taskId, DownloadProgress(
         taskId: task.taskId,
-        progress: task.progress,
-        downloadedBytes: task.downloadedBytes,
-        totalBytes: task.totalBytes,
+        progress: updatedTask?.totalSegments != null && updatedTask!.totalSegments > 0 
+            ? updatedTask.downloadedSegments / updatedTask.totalSegments 
+            : 0,
+        downloadedBytes: updatedTask?.downloadedBytes ?? 0,
+        totalBytes: updatedTask?.totalBytes ?? 0,
         speed: 0,
-        status: TaskStatus.failed,
+        status: 'failed',
         error: errorMessage,
       ));
     }
@@ -452,13 +454,6 @@ class DownloadManager {
     for (final task in pausedTasks) {
       await resumeDownload(task.taskId);
     }
-  }
-
-  /// Get all active download streams
-  Map<String, Stream<DownloadProgress>> get activeDownloadStreams {
-    return Map.fromEntries(
-      _progressControllers.entries.map((e) => MapEntry(e.key, e.value.stream)),
-    );
   }
 
   /// Dispose download manager
@@ -484,7 +479,7 @@ class DownloadProgress {
   final int downloadedBytes;
   final int totalBytes;
   final int speed; // bytes per second
-  final TaskStatus status;
+  final String status;
   final String? error;
 
   DownloadProgress({

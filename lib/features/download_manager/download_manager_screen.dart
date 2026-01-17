@@ -2,9 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../core/theme/app_colors.dart';
-import '../../core/utils/extensions.dart';
-import '../../data/models/download_task.dart';
-import '../../data/services/download_manager.dart';
+import '../../data/database/database.dart';
 import '../../providers/app_providers.dart';
 import '../../widgets/empty_state.dart';
 
@@ -90,12 +88,12 @@ class DownloadManagerScreen extends ConsumerWidget {
 
     switch (action) {
       case 'pause_all':
-        for (final task in tasks.where((t) => t.canPause)) {
+        for (final task in tasks.where((t) => t.status == 'downloading')) {
           await downloadManager.pauseDownload(task.taskId);
         }
         break;
       case 'resume_all':
-        for (final task in tasks.where((t) => t.canResume)) {
+        for (final task in tasks.where((t) => t.status == 'paused' || t.status == 'failed')) {
           await downloadManager.resumeDownload(task.taskId);
         }
         break;
@@ -187,6 +185,28 @@ class _DownloadTaskCard extends StatelessWidget {
     required this.onCancel,
   });
 
+  double get _progress {
+    if (task.totalSegments == 0) return 0.0;
+    return (task.downloadedSegments / task.totalSegments).clamp(0.0, 1.0);
+  }
+
+  String get _progressPercent => '${(_progress * 100).toStringAsFixed(1)}%';
+
+  String _formatBytes(int bytes) {
+    if (bytes <= 0) return '0 B';
+    const suffixes = ['B', 'KB', 'MB', 'GB'];
+    var i = 0;
+    double size = bytes.toDouble();
+    while (size >= 1024 && i < suffixes.length - 1) {
+      size /= 1024;
+      i++;
+    }
+    return '${size.toStringAsFixed(2)} ${suffixes[i]}';
+  }
+
+  bool get _canPause => task.status == 'downloading';
+  bool get _canResume => task.status == 'paused' || task.status == 'failed';
+
   @override
   Widget build(BuildContext context) {
     return Card(
@@ -226,7 +246,7 @@ class _DownloadTaskCard extends StatelessWidget {
             ClipRRect(
               borderRadius: BorderRadius.circular(4),
               child: LinearProgressIndicator(
-                value: task.progress,
+                value: _progress,
                 minHeight: 8,
                 backgroundColor: AppColors.draculaCurrentLine,
               ),
@@ -239,7 +259,7 @@ class _DownloadTaskCard extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  '${task.progressPercent} • ${task.downloadedSizeFormatted}',
+                  '$_progressPercent • ${_formatBytes(task.downloadedBytes)}',
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
                 Text(
@@ -255,13 +275,13 @@ class _DownloadTaskCard extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                if (task.canPause)
+                if (_canPause)
                   IconButton(
                     icon: const Icon(Icons.pause),
                     onPressed: onPause,
                     tooltip: 'Pause',
                   ),
-                if (task.canResume)
+                if (_canResume)
                   IconButton(
                     icon: const Icon(Icons.play_arrow),
                     onPressed: onResume,
@@ -286,22 +306,22 @@ class _DownloadTaskCard extends StatelessWidget {
     IconData icon;
 
     switch (task.status) {
-      case TaskStatus.queued:
+      case 'queued':
         color = AppColors.draculaOrange;
         label = 'Queued';
         icon = Icons.schedule;
         break;
-      case TaskStatus.downloading:
+      case 'downloading':
         color = AppColors.draculaCyan;
         label = 'Downloading';
         icon = Icons.downloading;
         break;
-      case TaskStatus.paused:
+      case 'paused':
         color = AppColors.draculaYellow;
         label = 'Paused';
         icon = Icons.pause;
         break;
-      case TaskStatus.failed:
+      case 'failed':
         color = AppColors.draculaRed;
         label = 'Failed';
         icon = Icons.error;

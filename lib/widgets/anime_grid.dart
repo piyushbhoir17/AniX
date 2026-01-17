@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../core/constants/app_constants.dart';
-import '../data/models/anime.dart';
+import '../data/database/database.dart';
 import 'anime_card.dart';
 
 /// Grid widget for displaying anime cards
