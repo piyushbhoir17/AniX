@@ -1,7 +1,7 @@
 plugins {
     id "com.android.application"
     id "kotlin-android"
-    id "dev.flutter.flutter-gradle-plugin"
+    // Flutter plugin applied after android configuration
 }
 
 def localProperties = new Properties()
@@ -22,9 +22,12 @@ if (flutterVersionName == null) {
     flutterVersionName = "1.0"
 }
 
+// Apply flutter plugin
+apply plugin: 'dev.flutter.flutter-gradle-plugin'
+
 android {
     namespace = "com.sleepy.anix"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = 36
     ndkVersion = "27.0.12077973"
     
     compileOptions {
@@ -44,8 +47,8 @@ android {
     
     defaultConfig {
         applicationId = "com.sleepy.anix"
-        minSdk = flutter.minSdkVersion
-        targetSdk = flutter.targetSdkVersion
+        minSdk = 24
+        targetSdk = 36
         versionCode = flutterVersionCode.toInteger()
         versionName = flutterVersionName
         multiDexEnabled true
