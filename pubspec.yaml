@@ -1,0 +1,96 @@
+name: anix
+description: An Flutter app to watch anime in Hindi.
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.2.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # State Management
+  flutter_riverpod: ^2.5.1
+  riverpod_annotation: ^2.3.5
+
+  # Database (Isar)
+  isar: ^3.1.0+1
+  isar_flutter_libs: ^3.1.0+1
+
+  # Networking
+  dio: ^5.4.3+1
+  connectivity_plus: ^6.0.3
+
+  # WebView for scraping
+  flutter_inappwebview: ^6.0.0
+
+  # Video Player (media_kit - used by Dartatsu)
+  media_kit: ^1.1.10+1
+  media_kit_video: ^1.2.4
+  media_kit_libs_video: ^1.0.4
+
+  # Permissions
+  permission_handler: ^11.3.1
+
+  # Storage Access Framework
+  saf: ^2.0.0
+
+  # Image Caching
+  cached_network_image: ^3.3.1
+
+  # UI Components
+  flutter_animate: ^4.5.0
+  shimmer: ^3.0.0
+  
+  # Path utilities
+  path_provider: ^2.1.3
+  path: ^1.9.0
+
+  # HTTP
+  http: ^1.2.1
+
+  # Shared preferences for simple settings
+  shared_preferences: ^2.2.3
+
+  # File picker (for SAF fallback)
+  file_picker: ^8.0.3
+
+  # UUID for unique IDs
+  uuid: ^4.4.0
+
+  # Collection utilities
+  collection: ^1.18.0
+
+  # Logging
+  logger: ^2.3.0
+
+  # Cupertino icons
+  cupertino_icons: ^1.0.8
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+  build_runner: ^2.4.9
+  isar_generator: ^3.1.0+1
+  riverpod_generator: ^2.4.0
+  custom_lint: ^0.6.4
+  riverpod_lint: ^2.3.10
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/images/
+
+  fonts:
+    - family: Poppins
+      fonts:
+        - asset: assets/fonts/Poppins-Regular.ttf
+        - asset: assets/fonts/Poppins-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Poppins-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/Poppins-Bold.ttf
+          weight: 700

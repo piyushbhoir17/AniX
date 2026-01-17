@@ -1,0 +1,172 @@
+name: Build AniX
+
+on:
+  push:
+    branches: [main, master]
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+env:
+  FLUTTER_VERSION: '3.24.0'
+
+jobs:
+  build-android:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: 'stable'
+          cache: true
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Generate code (Isar, Riverpod)
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      - name: Analyze code
+        run: flutter analyze --no-fatal-infos
+        continue-on-error: true
+
+      - name: Run tests
+        run: flutter test
+        continue-on-error: true
+
+      - name: Build APK (Debug)
+        run: |
+          flutter build apk --debug 2>&1 | tee build_debug.log
+        continue-on-error: true
+
+      - name: Build APK (Release)
+        run: |
+          flutter build apk --release 2>&1 | tee build_release.log
+
+      - name: Build App Bundle (Release)
+        run: |
+          flutter build appbundle --release 2>&1 | tee build_bundle.log
+        continue-on-error: true
+
+      - name: Collect build logs
+        if: always()
+        run: |
+          mkdir -p build_logs
+          cp build_*.log build_logs/ 2>/dev/null || true
+          echo "Build completed at $(date)" > build_logs/build_info.txt
+          echo "Flutter version: $(flutter --version)" >> build_logs/build_info.txt
+          echo "Commit: ${{ github.sha }}" >> build_logs/build_info.txt
+
+      - name: Upload Debug APK
+        uses: actions/upload-artifact@v4
+        if: success() || failure()
+        with:
+          name: anix-debug-apk
+          path: build/app/outputs/flutter-apk/app-debug.apk
+          if-no-files-found: ignore
+
+      - name: Upload Release APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: anix-release-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: warn
+
+      - name: Upload App Bundle
+        uses: actions/upload-artifact@v4
+        if: success() || failure()
+        with:
+          name: anix-release-bundle
+          path: build/app/outputs/bundle/release/app-release.aab
+          if-no-files-found: ignore
+
+      - name: Upload Build Logs
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: build-logs
+          path: build_logs/
+          if-no-files-found: ignore
+
+  build-ios:
+    name: Build iOS (No Code Sign)
+    runs-on: macos-latest
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: 'stable'
+          cache: true
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Generate code
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      - name: Build iOS (No Code Sign)
+        run: |
+          flutter build ios --release --no-codesign 2>&1 | tee build_ios.log
+
+      - name: Upload Build Log
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ios-build-log
+          path: build_ios.log
+          if-no-files-found: ignore
+
+  release:
+    name: Create Release
+    needs: [build-android]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download Release APK
+        uses: actions/download-artifact@v4
+        with:
+          name: anix-release-apk
+          path: release/
+
+      - name: Download App Bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: anix-release-bundle
+          path: release/
+        continue-on-error: true
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            release/app-release.apk
+            release/app-release.aab
+          generate_release_notes: true
+          draft: false
+          prerelease: ${{ contains(github.ref, 'beta') || contains(github.ref, 'alpha') }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
