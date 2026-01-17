@@ -26,10 +26,19 @@ dependencies:
   # WebView for scraping
   flutter_inappwebview: ^6.1.5
 
-  # Video Player (media_kit - used by Dartatsu)
-  media_kit: ^1.1.11
-  media_kit_video: ^1.2.5
-  media_kit_libs_video: ^1.0.5
+  # Video Player (media_kit - Dartotsu fork for AGP 8.x compatibility)
+  media_kit:
+    git:
+      url: https://github.com/Schnitzel5/media-kit.git
+      path: media_kit
+  media_kit_video:
+    git:
+      url: https://github.com/Schnitzel5/media-kit.git
+      path: media_kit_video
+  media_kit_libs_video:
+    git:
+      url: https://github.com/Schnitzel5/media-kit.git
+      path: libs/universal/media_kit_libs_video
 
   # Permissions
   permission_handler: ^12.0.1
