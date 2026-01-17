@@ -7,8 +7,8 @@ plugins {
 
 android {
     namespace = "com.sleepy.anix"
-    compileSdk = 36
-    ndkVersion = "27.0.12077973"
+    compileSdk = 35
+    ndkVersion = "26.1.10909125"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -22,7 +22,7 @@ android {
     defaultConfig {
         applicationId = "com.sleepy.anix"
         minSdk = 24
-        targetSdk = 36
+        targetSdk = 35
         versionCode = flutter.versionCode
         versionName = flutter.versionName
         
