@@ -43,8 +43,10 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
   bool _isInitialized = false;
   bool _showControls = true;
   bool _isBuffering = false;
+  bool _isSeeking = false;
   Duration _position = Duration.zero;
   Duration _duration = Duration.zero;
+  Duration _seekPosition = Duration.zero; // Track seek position separately
   bool _isPlaying = false;
   double _playbackSpeed = 1.0;
 
@@ -56,8 +58,27 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
   }
 
   Future<void> _initPlayer() async {
-    _player = Player();
+    // Create player with better buffering configuration
+    _player = Player(
+      configuration: const PlayerConfiguration(
+        // Buffer more data for smoother playback
+        bufferSize: 64 * 1024 * 1024, // 64MB buffer
+        // Log level for debugging
+        logLevel: MPVLogLevel.warn,
+      ),
+    );
+    
     _controller = VideoController(_player);
+
+    // Configure mpv for better HLS streaming and seeking
+    await _player.setProperty('cache', 'yes');
+    await _player.setProperty('cache-secs', '120'); // 2 minutes cache
+    await _player.setProperty('demuxer-max-bytes', '100MiB');
+    await _player.setProperty('demuxer-max-back-bytes', '50MiB');
+    await _player.setProperty('demuxer-readahead-secs', '60'); // Read ahead 60 seconds
+    await _player.setProperty('force-seekable', 'yes'); // Force seekable for HLS
+    await _player.setProperty('hr-seek', 'yes'); // Precise seeking
+    await _player.setProperty('hr-seek-framedrop', 'yes'); // Drop frames for faster seeking
 
     // Listen to player state
     _player.stream.playing.listen((playing) {
@@ -77,11 +98,20 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
       if (mounted) setState(() => _isBuffering = buffering);
     });
 
+    _player.stream.error.listen((error) {
+      if (mounted && error.isNotEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Player error: $error')),
+        );
+      }
+    });
+
     // Open media
     await _player.open(Media(widget.videoUrl));
 
-    // Seek to start position if provided
+    // Seek to start position if provided (with a small delay to ensure player is ready)
     if (widget.startPosition != null && widget.startPosition! > 0) {
+      await Future.delayed(const Duration(milliseconds: 500));
       await _player.seek(Duration(seconds: widget.startPosition!));
     }
 
@@ -288,8 +318,12 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
           Row(
             children: [
               Text(
-                _position.format,
-                style: const TextStyle(color: Colors.white, fontSize: 12),
+                (_isSeeking ? _seekPosition : _position).format,
+                style: TextStyle(
+                  color: _isSeeking ? AppColors.draculaPurple : Colors.white,
+                  fontSize: 12,
+                  fontWeight: _isSeeking ? FontWeight.bold : FontWeight.normal,
+                ),
               ),
               const SizedBox(width: 8),
               Expanded(
@@ -299,17 +333,34 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
                     inactiveTrackColor: Colors.white24,
                     thumbColor: AppColors.draculaPurple,
                     trackHeight: 4,
-                    thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+                    thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
+                    overlayShape: const RoundSliderOverlayShape(overlayRadius: 16),
                   ),
                   child: Slider(
                     value: _duration.inSeconds > 0
-                        ? (_position.inSeconds / _duration.inSeconds).clamp(0.0, 1.0)
+                        ? ((_isSeeking ? _seekPosition : _position).inSeconds / _duration.inSeconds).clamp(0.0, 1.0)
                         : 0.0,
+                    onChangeStart: (value) {
+                      setState(() {
+                        _isSeeking = true;
+                        _seekPosition = _position;
+                      });
+                    },
                     onChanged: (value) {
+                      setState(() {
+                        _seekPosition = Duration(
+                          seconds: (value * _duration.inSeconds).round(),
+                        );
+                      });
+                    },
+                    onChangeEnd: (value) {
                       final newPosition = Duration(
                         seconds: (value * _duration.inSeconds).round(),
                       );
                       _player.seek(newPosition);
+                      setState(() {
+                        _isSeeking = false;
+                      });
                     },
                   ),
                 ),
