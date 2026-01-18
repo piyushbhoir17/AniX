@@ -12,7 +12,7 @@ class AppConstants {
   static const String userAgent =
       'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36';
   static const Duration networkTimeout = Duration(seconds: 30);
-  static const Duration sniffTimeout = Duration(seconds: 20);
+  static const Duration sniffTimeout = Duration(seconds: 30);
 
   // Download
   static const int parallelSegments = 4;

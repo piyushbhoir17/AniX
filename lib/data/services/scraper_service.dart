@@ -50,67 +50,49 @@ class ScraperService {
           mediaPlaybackRequiresUserGesture: false,
           allowsInlineMediaPlayback: true,
           useShouldInterceptRequest: true,
+          domStorageEnabled: true,
+          databaseEnabled: true,
+          cacheEnabled: true,
+          allowFileAccess: true,
+          allowContentAccess: true,
         ),
         onLoadStop: (controller, url) async {
           AppLogger.d('Page loaded: $url');
           _capturedReferer = url?.toString();
 
-          // Try to find and click on iframe if zephyrflick
+          // Get cookies
           try {
-            final iframeSrc = await controller.evaluateJavascript(source: '''
-              (function() {
-                var iframe = document.querySelector('iframe');
-                return iframe ? iframe.src : null;
-              })();
-            ''');
-
-            if (iframeSrc != null && iframeSrc.toString().contains('zephyrflick')) {
-              AppLogger.d('Found zephyrflick iframe, navigating...');
-              await controller.loadUrl(urlRequest: URLRequest(url: WebUri(iframeSrc.toString())));
-            }
+            final cookies = await CookieManager.instance().getCookies(url: url!);
+            _capturedCookies = _cookiesToNetscapeString(cookies);
           } catch (e) {
-            AppLogger.w('Failed to check for iframe: $e');
+            AppLogger.w('Failed to get cookies: $e');
           }
 
-          // Try to click play button after a delay
-          Future.delayed(const Duration(seconds: 2), () async {
-            try {
-              await controller.evaluateJavascript(source: '''
-                (function() {
-                  var playBtn = document.querySelector('.jw-display-icon-container');
-                  if (playBtn) playBtn.click();
-                  else {
-                    var video = document.querySelector('video');
-                    if (video) video.play();
-                  }
-                })();
-              ''');
-            } catch (e) {
-              AppLogger.w('Failed to click play: $e');
-            }
-          });
-
-          // Get cookies
-          final cookies = await CookieManager.instance().getCookies(url: url!);
-          _capturedCookies = _cookiesToNetscapeString(cookies);
+          // Try to find video player iframe and navigate into it
+          _tryNavigateToVideoPlayer(controller);
+        },
+        onLoadStart: (controller, url) {
+          AppLogger.d('Loading: $url');
         },
         shouldInterceptRequest: (controller, request) async {
-          final url = request.url.toString();
+          final url = request.url.toString().toLowerCase();
           
-          // Check for M3U8 or master.txt
-          if ((url.contains('.m3u8') || url.contains('master.txt')) && 
-              !url.contains('cdn-cgi')) {
-            AppLogger.i('Captured M3U8 URL: $url');
+          // Check for M3U8, master.txt, or HLS patterns
+          if (_isM3u8Url(url)) {
+            AppLogger.i('Captured M3U8 URL: ${request.url}');
             
             if (!_m3u8Completer!.isCompleted) {
-              _m3u8Completer!.complete(url);
+              _m3u8Completer!.complete(request.url.toString());
             }
           }
           
           return null; // Continue with request
         },
         onReceivedError: (controller, request, error) {
-          AppLogger.w('WebView error: ${error.description}');
+          AppLogger.w('WebView error for ${request.url}: ${error.description}');
+        },
+        onConsoleMessage: (controller, consoleMessage) {
+          AppLogger.d('Console: ${consoleMessage.message}');
         },
       );
 
@@ -145,6 +127,130 @@ class ScraperService {
         originalError: e,
         stackTrace: stack,
       );
+    }
+  }
+
+  /// Check if URL is an M3U8/HLS URL
+  bool _isM3u8Url(String url) {
+    // Skip CDN protection and tracking URLs
+    if (url.contains('cdn-cgi') || url.contains('analytics') || url.contains('beacon')) {
+      return false;
+    }
+    
+    // Check for common M3U8/HLS patterns
+    return url.contains('.m3u8') ||
+           url.contains('master.txt') ||
+           url.contains('/hls/') ||
+           url.contains('playlist.m3u') ||
+           url.contains('/playlist/') && url.contains('.m3u') ||
+           url.contains('index.m3u8') ||
+           url.contains('master.m3u8') ||
+           (url.contains('.m3u') && !url.contains('.m3u8'));
+  }
+
+  /// Try to navigate into video player iframe and trigger playback
+  Future<void> _tryNavigateToVideoPlayer(InAppWebViewController controller) async {
+    // Wait a bit for page to fully render
+    await Future.delayed(const Duration(milliseconds: 500));
+    
+    try {
+      // Find all iframes and look for video player
+      final result = await controller.evaluateJavascript(source: '''
+        (function() {
+          var iframes = document.querySelectorAll('iframe');
+          var videoIframe = null;
+          
+          for (var i = 0; i < iframes.length; i++) {
+            var src = iframes[i].src || '';
+            if (src.includes('zephyrflick') || 
+                src.includes('player') || 
+                src.includes('embed') ||
+                src.includes('stream') ||
+                src.includes('video')) {
+              videoIframe = src;
+              break;
+            }
+          }
+          
+          return videoIframe;
+        })();
+      ''');
+
+      if (result != null && result.toString().isNotEmpty && result != 'null') {
+        AppLogger.i('Found video iframe: $result');
+        await controller.loadUrl(urlRequest: URLRequest(url: WebUri(result.toString())));
+        return;
+      }
+    } catch (e) {
+      AppLogger.w('Failed to find iframe: $e');
+    }
+
+    // Try to click play button or trigger video playback
+    await Future.delayed(const Duration(seconds: 1));
+    
+    try {
+      await controller.evaluateJavascript(source: '''
+        (function() {
+          // Try various play button selectors
+          var selectors = [
+            '.jw-display-icon-container',
+            '.plyr__control--overlaid',
+            '.vjs-big-play-button',
+            '.play-button',
+            '.btn-play',
+            '[class*="play"]',
+            'video'
+          ];
+          
+          for (var i = 0; i < selectors.length; i++) {
+            var el = document.querySelector(selectors[i]);
+            if (el) {
+              if (el.tagName === 'VIDEO') {
+                el.play();
+              } else {
+                el.click();
+              }
+              break;
+            }
+          }
+          
+          // Also try to find and play any video element
+          var videos = document.querySelectorAll('video');
+          for (var j = 0; j < videos.length; j++) {
+            try { videos[j].play(); } catch(e) {}
+          }
+        })();
+      ''');
+    } catch (e) {
+      AppLogger.w('Failed to click play: $e');
+    }
+
+    // Check for iframe again after some interaction
+    await Future.delayed(const Duration(seconds: 2));
+    
+    try {
+      final result = await controller.evaluateJavascript(source: '''
+        (function() {
+          var iframes = document.querySelectorAll('iframe');
+          for (var i = 0; i < iframes.length; i++) {
+            var src = iframes[i].src || '';
+            if (src && src.length > 10 && !src.includes('about:blank')) {
+              return src;
+            }
+          }
+          return null;
+        })();
+      ''');
+
+      if (result != null && result.toString().isNotEmpty && result != 'null') {
+        final iframeSrc = result.toString();
+        if (!iframeSrc.contains('about:blank')) {
+          AppLogger.i('Found iframe after delay: $iframeSrc');
+          await controller.loadUrl(urlRequest: URLRequest(url: WebUri(iframeSrc)));
+        }
+      }
+    } catch (e) {
+      AppLogger.w('Failed to check for iframe after delay: $e');
     }
   }
 
