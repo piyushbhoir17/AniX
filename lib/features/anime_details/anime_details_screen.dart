@@ -24,7 +24,6 @@ class _AnimeDetailsScreenState extends ConsumerState<AnimeDetailsScreen> {
   String? _selectedSeason;
   String _episodeSearchQuery = '';
   final TextEditingController _searchController = TextEditingController();
-  bool _isLoadingVideo = false;
   String? _loadingEpisodeId;
 
   @override
@@ -90,7 +89,6 @@ class _AnimeDetailsScreenState extends ConsumerState<AnimeDetailsScreen> {
     final episodeId = '${episode.animeId}-${episode.episodeNumber}';
     
     setState(() {
-      _isLoadingVideo = true;
       _loadingEpisodeId = episodeId;
     });
 
@@ -148,7 +146,6 @@ class _AnimeDetailsScreenState extends ConsumerState<AnimeDetailsScreen> {
     } finally {
       if (mounted) {
         setState(() {
-          _isLoadingVideo = false;
           _loadingEpisodeId = null;
         });
       }
@@ -196,7 +193,7 @@ class _AnimeDetailsScreenState extends ConsumerState<AnimeDetailsScreen> {
           _buildSeasonDropdown(context, seasonKeys, selectedSeason!),
           const SizedBox(height: 16),
         ],
-        _buildEpisodeSection(context, episodes, allEpisodes.length),
+        _buildEpisodeSection(context, episodes, allEpisodes.length, anime),
       ],
     );
   }
@@ -248,7 +245,7 @@ class _AnimeDetailsScreenState extends ConsumerState<AnimeDetailsScreen> {
     );
   }
 
-  Widget _buildEpisodeSection(BuildContext context, List<Episode> episodes, int totalEpisodes) {
+  Widget _buildEpisodeSection(BuildContext context, List<Episode> episodes, int totalEpisodes, Anime anime) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -305,7 +302,7 @@ class _AnimeDetailsScreenState extends ConsumerState<AnimeDetailsScreen> {
           ...episodes.map((episode) => _EpisodeTile(
             episode: episode,
             isLoading: _loadingEpisodeId == '${episode.animeId}-${episode.episodeNumber}',
-            onTap: () => _playEpisode(episode, detail.anime),
+            onTap: () => _playEpisode(episode, anime),
           )),
       ],
     );
@@ -358,12 +355,12 @@ class _AnimeDetailsScreenState extends ConsumerState<AnimeDetailsScreen> {
                 const SizedBox(height: 4),
                 Text('Type: ${anime.type}', style: Theme.of(context).textTheme.bodySmall),
               ],
-              if (anime.genres != null && anime.genres!.isNotEmpty) ...[
+              if (anime.genres.isNotEmpty) ...[
                 const SizedBox(height: 8),
                 Wrap(
                   spacing: 4,
                   runSpacing: 4,
-                  children: anime.genres!.take(5).map((genre) => Chip(
+                  children: anime.genres.take(5).map((genre) => Chip(
                     label: Text(genre, style: const TextStyle(fontSize: 10)),
                     padding: EdgeInsets.zero,
                     materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,

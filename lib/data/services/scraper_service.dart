@@ -303,8 +303,6 @@ class ScraperService {
         final seasonKey = 'Season $seasonNum';
 
         // Generate title from URL
-        final urlParts = normalizedUrl.split('/');
-        final slug = urlParts.isNotEmpty ? urlParts.last : 'episode';
         final title = 'Episode $episodeNum';
 
         // Ensure absolute URL
@@ -420,7 +418,7 @@ class ScraperService {
   String? _extractMetaValue(dynamic document, List<String> labels) {
     final text = document.body?.text ?? '';
     for (final label in labels) {
-      final regex = RegExp('${label}\s*:?\s*([^\n]+)', caseSensitive: false);
+      final regex = RegExp('$label\\s*:?\\s*([^\\n]+)', caseSensitive: false);
       final match = regex.firstMatch(text);
       if (match != null) {
         return match.group(1)?.trim();
