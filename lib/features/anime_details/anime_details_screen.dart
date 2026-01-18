@@ -19,6 +19,14 @@ class AnimeDetailsScreen extends ConsumerStatefulWidget {
 class _AnimeDetailsScreenState extends ConsumerState<AnimeDetailsScreen> {
   bool _isDescriptionExpanded = false;
   String? _selectedSeason;
+  String _episodeSearchQuery = '';
+  final TextEditingController _searchController = TextEditingController();
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -39,44 +47,149 @@ class _AnimeDetailsScreenState extends ConsumerState<AnimeDetailsScreen> {
   Widget _buildContent(BuildContext context, AnimeDetail detail) {
     final anime = detail.anime;
     final seasons = detail.episodesBySeason;
-    final seasonKeys = seasons.keys.toList();
+    final seasonKeys = seasons.keys.toList()..sort(_compareSeasons);
     final hasSeasons = seasonKeys.isNotEmpty;
+    
+    // Initialize selected season if not set
+    if (_selectedSeason == null && hasSeasons) {
+      _selectedSeason = seasonKeys.first;
+    }
+    
     final selectedSeason = hasSeasons
         ? seasonKeys.firstWhere(
             (season) => season == _selectedSeason,
             orElse: () => seasonKeys.first,
           )
         : null;
-    final episodes = hasSeasons ? seasons[selectedSeason]! : const <Episode>[];
+    
+    final allEpisodes = hasSeasons ? seasons[selectedSeason]! : const <Episode>[];
+    
+    // Filter episodes by search query
+    final episodes = _episodeSearchQuery.isEmpty
+        ? allEpisodes
+        : allEpisodes.where((ep) {
+            final query = _episodeSearchQuery.toLowerCase();
+            final epNumStr = ep.episodeNumber.toString();
+            final title = ep.title.toLowerCase();
+            return epNumStr.contains(query) || title.contains(query);
+          }).toList();
 
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
         _buildHeader(anime),
         const SizedBox(height: 16),
-        Text('Anime Name', style: Theme.of(context).textTheme.labelLarge),
-        Text(anime.title, style: Theme.of(context).textTheme.headlineSmall),
-        const SizedBox(height: 16),
         _buildDescription(context, anime.description),
         const SizedBox(height: 16),
         if (hasSeasons) ...[
-          Text('Season', style: Theme.of(context).textTheme.labelLarge),
-          const SizedBox(height: 8),
-          _SeasonToggle(
-            seasons: seasonKeys,
-            selected: selectedSeason!,
-            onSelected: (season) {
-              setState(() {
-                _selectedSeason = season;
-              });
-            },
-          ),
+          _buildSeasonDropdown(context, seasonKeys, selectedSeason!),
           const SizedBox(height: 16),
         ],
-        Text('Episodes', style: Theme.of(context).textTheme.titleMedium),
+        _buildEpisodeSection(context, episodes, allEpisodes.length),
+      ],
+    );
+  }
+
+  int _compareSeasons(String a, String b) {
+    // Extract season numbers for proper sorting
+    final numA = int.tryParse(a.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
+    final numB = int.tryParse(b.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
+    return numA.compareTo(numB);
+  }
+
+  Widget _buildSeasonDropdown(BuildContext context, List<String> seasons, String selected) {
+    return Row(
+      children: [
+        Text('Season:', style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            decoration: BoxDecoration(
+              border: Border.all(color: AppColors.draculaComment),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                value: selected,
+                isExpanded: true,
+                icon: const Icon(Icons.keyboard_arrow_down),
+                items: seasons.map((season) {
+                  return DropdownMenuItem<String>(
+                    value: season,
+                    child: Text(season),
+                  );
+                }).toList(),
+                onChanged: (value) {
+                  if (value != null) {
+                    setState(() {
+                      _selectedSeason = value;
+                      _episodeSearchQuery = '';
+                      _searchController.clear();
+                    });
+                  }
+                },
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildEpisodeSection(BuildContext context, List<Episode> episodes, int totalEpisodes) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'Episodes (${episodes.length}${_episodeSearchQuery.isNotEmpty ? '/$totalEpisodes' : ''})',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+          ],
+        ),
         const SizedBox(height: 8),
+        // Episode search field
+        TextField(
+          controller: _searchController,
+          decoration: InputDecoration(
+            hintText: 'Search episodes (e.g., "25" or "title")',
+            prefixIcon: const Icon(Icons.search),
+            suffixIcon: _episodeSearchQuery.isNotEmpty
+                ? IconButton(
+                    icon: const Icon(Icons.clear),
+                    onPressed: () {
+                      setState(() {
+                        _episodeSearchQuery = '';
+                        _searchController.clear();
+                      });
+                    },
+                  )
+                : null,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          ),
+          onChanged: (value) {
+            setState(() {
+              _episodeSearchQuery = value;
+            });
+          },
+        ),
+        const SizedBox(height: 12),
         if (episodes.isEmpty)
-          Text('No episodes found', style: Theme.of(context).textTheme.bodyMedium)
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Text(
+              _episodeSearchQuery.isNotEmpty
+                  ? 'No episodes match "$_episodeSearchQuery"'
+                  : 'No episodes found',
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+          )
         else
           ...episodes.map((episode) => _EpisodeTile(episode: episode)),
       ],
@@ -88,15 +201,27 @@ class _AnimeDetailsScreenState extends ConsumerState<AnimeDetailsScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         ClipRRect(
-          borderRadius: BorderRadius.circular(16),
-          child: SizedBox(
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
             width: 120,
-            height: 180,
+            height: 170,
+            color: AppColors.draculaCurrentLine,
             child: anime.coverUrl != null
-                ? Image.network(anime.coverUrl!, fit: BoxFit.cover)
-                : Container(
-                    color: AppColors.draculaCurrentLine,
-                    child: const Icon(Icons.movie_outlined, size: 48, color: AppColors.draculaComment),
+                ? Image.network(
+                    anime.coverUrl!,
+                    fit: BoxFit.cover,
+                    width: 120,
+                    height: 170,
+                    errorBuilder: (context, error, stackTrace) => const Center(
+                      child: Icon(Icons.broken_image_outlined, size: 48, color: AppColors.draculaComment),
+                    ),
+                    loadingBuilder: (context, child, loadingProgress) {
+                      if (loadingProgress == null) return child;
+                      return const Center(child: CircularProgressIndicator(strokeWidth: 2));
+                    },
+                  )
+                : const Center(
+                    child: Icon(Icons.movie_outlined, size: 48, color: AppColors.draculaComment),
                   ),
           ),
         ),
@@ -117,6 +242,19 @@ class _AnimeDetailsScreenState extends ConsumerState<AnimeDetailsScreen> {
               if (anime.type != null) ...[
                 const SizedBox(height: 4),
                 Text('Type: ${anime.type}', style: Theme.of(context).textTheme.bodySmall),
+              ],
+              if (anime.genres != null && anime.genres!.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 4,
+                  runSpacing: 4,
+                  children: anime.genres!.take(5).map((genre) => Chip(
+                    label: Text(genre, style: const TextStyle(fontSize: 10)),
+                    padding: EdgeInsets.zero,
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    visualDensity: VisualDensity.compact,
+                  )).toList(),
+                ),
               ],
             ],
           ),
@@ -172,33 +310,6 @@ class _AnimeDetailsScreenState extends ConsumerState<AnimeDetailsScreen> {
           ],
         ),
       ),
-    );
-  }
-}
-
-class _SeasonToggle extends StatelessWidget {
-  final List<String> seasons;
-  final String selected;
-  final ValueChanged<String> onSelected;
-
-  const _SeasonToggle({
-    required this.seasons,
-    required this.selected,
-    required this.onSelected,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Wrap(
-      spacing: 8,
-      children: seasons.map((season) {
-        final isSelected = season == selected;
-        return ChoiceChip(
-          label: Text(season),
-          selected: isSelected,
-          onSelected: (_) => onSelected(season),
-        );
-      }).toList(),
     );
   }
 }

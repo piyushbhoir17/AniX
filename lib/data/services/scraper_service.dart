@@ -310,7 +310,10 @@ class ScraperService {
 
   Map<String, List<Episode>> _extractEpisodesBySeason(dynamic document, String animeId) {
     final seasons = <String, List<Episode>>{};
-    final episodeLinks = document.querySelectorAll('a');
+    final seenUrls = <String>{};
+    
+    // Get all links on the page
+    final allLinks = document.querySelectorAll('a');
 
     // Pattern: /episode/$series-name-$seasonx$episode/
     // Examples:
@@ -321,24 +324,36 @@ class ScraperService {
     final seasonEpisodeRegex = RegExp(r'-(\d+)x(\d+)/?$');
     final episodeOnlyRegex = RegExp(r'-(\d+)/?$');
 
-    for (final link in episodeLinks) {
+    for (final link in allLinks) {
       final href = link.attributes['href'] ?? '';
+      
+      // Skip if not an episode link
       if (!href.contains('/episode/')) continue;
+      
+      // Skip if we've already processed this URL (avoid duplicates)
+      final normalizedHref = href.replaceAll(RegExp(r'/$'), ''); // Remove trailing slash
+      if (seenUrls.contains(normalizedHref)) continue;
+      seenUrls.add(normalizedHref);
 
-      final title = link.text.trim();
-      if (title.isEmpty) continue;
+      // Get title from link text or generate from URL
+      var title = link.text.trim();
+      if (title.isEmpty || title.length > 100) {
+        // Extract episode info from URL for title
+        final urlParts = normalizedHref.split('/');
+        title = urlParts.isNotEmpty ? urlParts.last.replaceAll('-', ' ') : 'Episode';
+      }
 
       int seasonNum = 1;
       int episodeNum = 1;
 
       // Try to match season x episode pattern first (e.g., -2x5)
-      final seasonMatch = seasonEpisodeRegex.firstMatch(href);
+      final seasonMatch = seasonEpisodeRegex.firstMatch(normalizedHref);
       if (seasonMatch != null) {
         seasonNum = int.tryParse(seasonMatch.group(1) ?? '1') ?? 1;
         episodeNum = int.tryParse(seasonMatch.group(2) ?? '1') ?? 1;
       } else {
         // Fall back to episode-only pattern (e.g., -5)
-        final episodeMatch = episodeOnlyRegex.firstMatch(href);
+        final episodeMatch = episodeOnlyRegex.firstMatch(normalizedHref);
         if (episodeMatch != null) {
           episodeNum = int.tryParse(episodeMatch.group(1) ?? '1') ?? 1;
         }
@@ -346,11 +361,18 @@ class ScraperService {
 
       final seasonKey = 'Season $seasonNum';
 
+      // Ensure the URL is absolute
+      final absoluteUrl = href.startsWith('http') 
+          ? href 
+          : href.startsWith('/') 
+              ? '${AppConstants.baseUrl}$href'
+              : '${AppConstants.baseUrl}/$href';
+
       final episode = Episode.create(
         animeId: animeId,
         episodeNumber: episodeNum,
         title: title,
-        sourceUrl: href,
+        sourceUrl: absoluteUrl,
       );
 
       seasons.putIfAbsent(seasonKey, () => []).add(episode);
@@ -360,6 +382,20 @@ class ScraperService {
     for (final seasonKey in seasons.keys) {
       seasons[seasonKey]!.sort((a, b) => a.episodeNumber.compareTo(b.episodeNumber));
     }
+
+    // Remove duplicate episodes (same episode number in same season)
+    for (final seasonKey in seasons.keys) {
+      final episodeList = seasons[seasonKey]!;
+      final uniqueEpisodes = <int, Episode>{};
+      for (final ep in episodeList) {
+        // Keep first occurrence of each episode number
+        uniqueEpisodes.putIfAbsent(ep.episodeNumber, () => ep);
+      }
+      seasons[seasonKey] = uniqueEpisodes.values.toList()
+        ..sort((a, b) => a.episodeNumber.compareTo(b.episodeNumber));
+    }
+
+    AppLogger.i('Extracted ${seasons.entries.map((e) => '${e.key}: ${e.value.length} eps').join(', ')}');
 
     return seasons;
   }
