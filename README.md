@@ -12,7 +12,7 @@ An open-source Flutter app to watch anime in Hindi with offline download support
 - 🌙 **Light & Dark Mode** - System-adaptive theming
 - 📚 **Anime Library** - Bookmark and organize your favorite anime
 - 📥 **Offline Downloads** - Download episodes with smart M3U8/HLS handling
-- 🎬 **Custom Player** - Feature-rich video player inspired by Dartatsu
+- 🎬 **Custom Player** - Feature-rich video player with quality selection
 - 🔍 **Smart Search** - Find anime quickly with episode search
 - 📊 **Download Manager** - Track and manage downloads
 - 💾 **Progress Tracking** - Auto-save watch progress
@@ -58,7 +58,7 @@ lib/
 - **State Management**: Riverpod
 - **Database**: Isar Community
 - **Video Player**: media_kit
-- **WebView**: flutter_inappwebview
+- **HTML Parser**: html
 - **HTTP**: Dio
 
 ## 🚀 Getting Started
@@ -130,7 +130,6 @@ The app requires the following permissions:
 - [ ] Picture-in-Picture mode
 - [ ] Chromecast support
 - [ ] Multiple language support
-- [ ] Sync across devices
 
 ## 🤝 Contributing
 
@@ -152,7 +151,6 @@ This app is for educational purposes only. Please support the official anime rel
 
 ## 🙏 Acknowledgments
 
-- [Dartatsu](https://github.com/dartatsu) for video player inspiration
 - [Dracula Theme](https://draculatheme.com/) for the color palette
 - All the amazing Flutter package authors
 
