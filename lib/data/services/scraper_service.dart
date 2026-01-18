@@ -687,19 +687,8 @@ class ScraperService {
     return buffer.toString().trim();
   }
 
-  /// Dispose WebView
-  Future<void> _disposeWebView() async {
-    try {
-      await _webView?.dispose();
-      _webView = null;
-    } catch (e) {
-      AppLogger.w('Failed to dispose WebView: $e');
-    }
-  }
-
   /// Dispose service
   void dispose() {
-    _disposeWebView();
     _dio.close();
   }
 }
