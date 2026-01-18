@@ -160,7 +160,8 @@ class ScraperService {
         throw ScraperException(message: 'Failed to fetch series page: HTTP ${response.statusCode}');
       }
 
-      final document = html_parser.parse(response.data.toString());
+      final html = response.data.toString();
+      final document = html_parser.parse(html);
       final title = _extractSeriesTitle(document) ?? animeId.replaceAll('-', ' ');
       final description = _extractDescription(document);
       final coverUrl = _extractCoverUrl(document);
@@ -185,7 +186,21 @@ class ScraperService {
       )
         ..sourceUrl = seriesUrl;
 
-      final episodesBySeason = _extractEpisodesBySeason(document, animeId);
+      // Extract post ID and seasons for AJAX fetching
+      final postId = _extractPostId(html);
+      final seasonNumbers = _extractSeasonNumbers(html);
+      
+      Map<String, List<Episode>> episodesBySeason;
+      
+      if (postId != null && seasonNumbers.isNotEmpty) {
+        // Fetch all seasons via AJAX
+        AppLogger.i('Found post ID: $postId, seasons: $seasonNumbers');
+        episodesBySeason = await _fetchAllSeasons(seriesUrl, postId, seasonNumbers, animeId, html);
+      } else {
+        // Fallback to scraping from main page
+        AppLogger.w('No post ID or seasons found, falling back to main page scrape');
+        episodesBySeason = _extractEpisodesBySeason(document, animeId);
+      }
 
       return AnimeDetail(anime: anime, episodesBySeason: episodesBySeason);
     } catch (e, stack) {
@@ -197,6 +212,136 @@ class ScraperService {
         stackTrace: stack,
       );
     }
+  }
+
+  /// Extract the WordPress post ID from HTML
+  String? _extractPostId(String html) {
+    final regex = RegExp(r'data-post="(\d+)"');
+    final match = regex.firstMatch(html);
+    return match?.group(1);
+  }
+
+  /// Extract all available season numbers from HTML
+  List<int> _extractSeasonNumbers(String html) {
+    final regex = RegExp(r'data-season="(\d+)"');
+    final matches = regex.allMatches(html);
+    final seasons = matches.map((m) => int.tryParse(m.group(1) ?? '') ?? 0).where((s) => s > 0).toSet().toList();
+    seasons.sort();
+    return seasons;
+  }
+
+  /// Fetch all seasons via AJAX endpoint
+  Future<Map<String, List<Episode>>> _fetchAllSeasons(
+    String seriesUrl,
+    String postId,
+    List<int> seasonNumbers,
+    String animeId,
+    String mainPageHtml,
+  ) async {
+    final baseDomain = Uri.parse(seriesUrl).origin;
+    final ajaxUrl = '$baseDomain/wp-admin/admin-ajax.php';
+    final allEpisodeUrls = <String>{};
+
+    // Fetch each season via AJAX
+    for (final seasonNum in seasonNumbers) {
+      try {
+        AppLogger.i('Fetching Season $seasonNum...');
+        final response = await _dio.post(
+          ajaxUrl,
+          data: 'action=action_select_season&season=$seasonNum&post=$postId',
+          options: Options(
+            headers: {
+              'User-Agent': AppConstants.userAgent,
+              'Content-Type': 'application/x-www-form-urlencoded',
+            },
+          ),
+        );
+
+        if (response.statusCode == 200) {
+          final seasonHtml = response.data.toString();
+          final urls = _extractEpisodeUrls(seasonHtml);
+          allEpisodeUrls.addAll(urls);
+          AppLogger.i('Season $seasonNum: found ${urls.length} episode URLs');
+        }
+
+        // Brief delay to be nice to the server
+        await Future.delayed(const Duration(milliseconds: 100));
+      } catch (e) {
+        AppLogger.w('Failed to fetch season $seasonNum: $e');
+      }
+    }
+
+    // Also extract from main page (may contain latest season)
+    final mainPageUrls = _extractEpisodeUrls(mainPageHtml);
+    allEpisodeUrls.addAll(mainPageUrls);
+
+    AppLogger.i('Total unique episode URLs: ${allEpisodeUrls.length}');
+
+    // Parse all URLs into episodes grouped by season
+    return _parseEpisodeUrls(allEpisodeUrls, animeId);
+  }
+
+  /// Extract episode URLs from HTML content
+  List<String> _extractEpisodeUrls(String html) {
+    final regex = RegExp(r'href="([^"]*\/episode\/[^"]*-\d+x\d+\/?)"');
+    final matches = regex.allMatches(html);
+    return matches.map((m) => m.group(1) ?? '').where((url) => url.isNotEmpty).toList();
+  }
+
+  /// Parse episode URLs into structured episodes by season
+  Map<String, List<Episode>> _parseEpisodeUrls(Set<String> urls, String animeId) {
+    final seasons = <String, List<Episode>>{};
+    final seasonEpisodeRegex = RegExp(r'-(\d+)x(\d+)\/?$');
+
+    for (final url in urls) {
+      final normalizedUrl = url.replaceAll(RegExp(r'/$'), '');
+      final match = seasonEpisodeRegex.firstMatch(normalizedUrl);
+
+      if (match != null) {
+        final seasonNum = int.tryParse(match.group(1) ?? '1') ?? 1;
+        final episodeNum = int.tryParse(match.group(2) ?? '1') ?? 1;
+        final seasonKey = 'Season $seasonNum';
+
+        // Generate title from URL
+        final urlParts = normalizedUrl.split('/');
+        final slug = urlParts.isNotEmpty ? urlParts.last : 'episode';
+        final title = 'Episode $episodeNum';
+
+        // Ensure absolute URL
+        final absoluteUrl = url.startsWith('http')
+            ? url
+            : url.startsWith('/')
+                ? '${AppConstants.baseUrl}$url'
+                : '${AppConstants.baseUrl}/$url';
+
+        final episode = Episode.create(
+          animeId: animeId,
+          episodeNumber: episodeNum,
+          title: title,
+          sourceUrl: absoluteUrl,
+        );
+
+        seasons.putIfAbsent(seasonKey, () => []).add(episode);
+      }
+    }
+
+    // Sort and deduplicate episodes within each season
+    for (final seasonKey in seasons.keys) {
+      final episodeList = seasons[seasonKey]!;
+      final uniqueEpisodes = <int, Episode>{};
+      for (final ep in episodeList) {
+        uniqueEpisodes.putIfAbsent(ep.episodeNumber, () => ep);
+      }
+      seasons[seasonKey] = uniqueEpisodes.values.toList()
+        ..sort((a, b) => a.episodeNumber.compareTo(b.episodeNumber));
+    }
+
+    // Log results
+    for (final entry in seasons.entries) {
+      AppLogger.i('${entry.key}: ${entry.value.length} episodes');
+    }
+
+    return seasons;
   }
 
   /// Fetch and parse master playlist
