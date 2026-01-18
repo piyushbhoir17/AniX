@@ -66,14 +66,25 @@ class _AnimeDetailsScreenState extends ConsumerState<AnimeDetailsScreen> {
   Future<void> _toggleBookmark(Anime anime) async {
     try {
       final repository = ref.read(animeRepositoryProvider);
-      anime.isBookmarked = !anime.isBookmarked;
-      await repository.upsert(anime);
+      
+      // First ensure the anime exists in the database
+      var existingAnime = await repository.getByAnimeId(anime.animeId);
+      
+      if (existingAnime == null) {
+        // Anime not in DB yet, save it first
+        await repository.save(anime);
+        existingAnime = anime;
+      }
+      
+      // Now toggle bookmark using the repository method
+      final isNowBookmarked = await repository.toggleBookmark(anime.animeId);
+      
       ref.invalidate(animeDetailProvider(widget.anime));
       ref.invalidate(bookmarkedAnimeProvider);
       
       if (mounted) {
         context.showSnackBar(
-          anime.isBookmarked ? 'Added to bookmarks' : 'Removed from bookmarks',
+          isNowBookmarked ? 'Added to bookmarks' : 'Removed from bookmarks',
         );
       }
     } catch (e) {

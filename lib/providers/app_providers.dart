@@ -123,10 +123,17 @@ final animeDetailProvider = FutureProvider.family<AnimeDetail, Anime>((ref, anim
   final scraper = ref.read(scraperServiceProvider);
   final detail = await scraper.fetchAnimeDetail(anime.sourceUrl!, anime.animeId);
 
-  await ref.read(animeRepositoryProvider).upsert(detail.anime);
+  // First save the anime to ensure it exists in DB
+  final animeRepo = ref.read(animeRepositoryProvider);
+  await animeRepo.upsert(detail.anime);
+  
+  // Then save episodes using upsert to avoid index violations
   final episodes = detail.episodesBySeason.values.expand((list) => list).toList();
   if (episodes.isNotEmpty) {
-    await ref.read(episodeRepositoryProvider).saveAll(episodes);
+    final episodeRepo = ref.read(episodeRepositoryProvider);
+    for (final episode in episodes) {
+      await episodeRepo.upsert(episode);
+    }
   }
 
   return detail;
