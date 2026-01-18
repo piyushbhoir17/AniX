@@ -13,10 +13,12 @@ An open-source Flutter app to watch anime in Hindi with offline download support
 - 📚 **Anime Library** - Bookmark and organize your favorite anime
 - 📥 **Offline Downloads** - Download episodes with smart M3U8/HLS handling
 - 🎬 **Custom Player** - Feature-rich video player inspired by Dartatsu
-- 🔍 **Smart Search** - Find anime quickly
+- 🔍 **Smart Search** - Find anime quickly with episode search
 - 📊 **Download Manager** - Track and manage downloads
 - 💾 **Progress Tracking** - Auto-save watch progress
 - 🔄 **Resume Support** - Continue watching where you left off
+- 📺 **Multi-Season Support** - Browse all seasons with dropdown selector
+- 🔎 **Episode Search** - Quickly find episodes in large series
 
 ## 📱 Screenshots
 
@@ -39,6 +41,7 @@ lib/
 │   └── services/                # Scraper, M3U8, Download services
 ├── features/
 │   ├── home/                    # Library screen
+│   ├── anime_details/           # Anime info with seasons & episodes
 │   ├── downloads/               # Downloaded content
 │   ├── download_manager/        # Active downloads
 │   ├── player/                  # Video player
@@ -118,7 +121,7 @@ The app requires the following permissions:
 |------------|---------|
 | Internet | Fetch anime data and stream videos |
 | Notifications | Show download progress |
-| Storage (SAF) | Save downloaded episodes |
+| Storage | Save downloaded episodes to `/storage/emulated/0/AniX` (customizable) |
 
 ## 🎯 Roadmap
 
