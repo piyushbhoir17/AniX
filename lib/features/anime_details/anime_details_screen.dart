@@ -8,6 +8,7 @@ import '../../data/models/anime_detail.dart';
 import '../../data/models/episode.dart';
 import '../../data/services/scraper_service.dart';
 import '../../providers/app_providers.dart';
+import '../../widgets/quality_selector_dialog.dart';
 import '../player/video_player_screen.dart';
 
 class AnimeDetailsScreen extends ConsumerStatefulWidget {
@@ -92,32 +93,69 @@ class _AnimeDetailsScreenState extends ConsumerState<AnimeDetailsScreen> {
       _loadingEpisodeId = episodeId;
     });
 
+    // Create a ValueNotifier for status updates
+    final statusNotifier = ValueNotifier<String>('Initializing...');
+    
     try {
-      // Show loading dialog
+      // Show loading dialog with status updates
       if (mounted) {
         showDialog(
           context: context,
           barrierDismissible: false,
-          builder: (context) => AlertDialog(
-            content: Row(
-              children: [
-                const CircularProgressIndicator(),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Text('Loading Episode ${episode.episodeNumber}...'),
-                ),
-              ],
-            ),
+          builder: (context) => _LoadingDialog(
+            episodeNumber: episode.episodeNumber,
+            statusNotifier: statusNotifier,
           ),
         );
       }
 
-      // Sniff the M3U8 URL from the episode page
+      // Step 1: Sniff the M3U8 URL from the episode page
+      statusNotifier.value = 'Fetching episode page...';
+      await Future.delayed(const Duration(milliseconds: 300));
+      
+      statusNotifier.value = 'Finding video source...';
       final scraperResult = await ScraperService.instance.sniffM3u8Url(episode.sourceUrl!);
+      
+      // Step 2: Fetch and parse master playlist
+      statusNotifier.value = 'Loading M3U8 playlist...';
+      final masterPlaylist = await ref.read(scraperServiceProvider).fetchMasterPlaylist(scraperResult);
       
       // Close loading dialog
       if (mounted) {
         Navigator.of(context).pop();
+      }
+      
+      // Step 3: Show quality selector if multiple options available
+      String videoUrl = scraperResult.m3u8Url;
+      
+      if (mounted && (masterPlaylist.videoStreams.length > 1 || masterPlaylist.audioTracks.isNotEmpty)) {
+        final settings = ref.read(settingsProvider);
+        final selection = await QualitySelectorDialog.show(
+          context,
+          playlist: masterPlaylist,
+          defaultQuality: settings.defaultQuality,
+          defaultLanguage: settings.defaultLanguage,
+        );
+        
+        if (selection == null) {
+          // User cancelled
+          setState(() => _loadingEpisodeId = null);
+          return;
+        }
+        
+        // Save as default if requested
+        if (selection.saveAsDefault) {
+          ref.read(settingsProvider.notifier).setDefaultQuality(selection.videoStream.qualityLabel);
+          if (selection.audioTrack != null) {
+            ref.read(settingsProvider.notifier).setDefaultLanguage(selection.audioTrack!.displayName);
+          }
+        }
+        
+        // Use the selected stream URL directly
+        videoUrl = selection.videoStream.url;
+      } else if (masterPlaylist.videoStreams.isNotEmpty) {
+        // Single quality - use the first/only stream
+        videoUrl = masterPlaylist.videoStreams.first.url;
       }
 
       // Navigate to video player
@@ -129,7 +167,7 @@ class _AnimeDetailsScreenState extends ConsumerState<AnimeDetailsScreen> {
               animeTitle: anime.title,
               episodeNumber: episode.episodeNumber,
               episodeTitle: episode.title,
-              videoUrl: scraperResult.m3u8Url,
+              videoUrl: videoUrl,
               startPosition: episode.watchedPosition > 0 ? episode.watchedPosition : null,
             ),
           ),
@@ -138,12 +176,16 @@ class _AnimeDetailsScreenState extends ConsumerState<AnimeDetailsScreen> {
     } catch (e) {
       AppLogger.e('Failed to load episode', e);
       
-      // Close loading dialog
-      if (mounted) {
+      // Close loading dialog if still open
+      if (mounted && Navigator.of(context).canPop()) {
         Navigator.of(context).pop();
+      }
+      
+      if (mounted) {
         context.showSnackBar('Failed to load video: ${e.toString()}');
       }
     } finally {
+      statusNotifier.dispose();
       if (mounted) {
         setState(() {
           _loadingEpisodeId = null;
@@ -503,5 +545,83 @@ class _EpisodeTile extends StatelessWidget {
           : const Icon(Icons.play_circle_outline, color: AppColors.draculaPink),
       onTap: isLoading ? null : onTap,
     );
+  }
+}
+
+/// Loading dialog with spinning wheel and status text
+class _LoadingDialog extends StatelessWidget {
+  final int episodeNumber;
+  final ValueNotifier<String> statusNotifier;
+
+  const _LoadingDialog({
+    required this.episodeNumber,
+    required this.statusNotifier,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Spinning wheel
+            const SizedBox(
+              width: 60,
+              height: 60,
+              child: CircularProgressIndicator(
+                strokeWidth: 4,
+                valueColor: AlwaysStoppedAnimation<Color>(AppColors.draculaPink),
+              ),
+            ),
+            const SizedBox(height: 24),
+            
+            // Episode title
+            Text(
+              'Loading Episode $episodeNumber',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 12),
+            
+            // Dynamic status text
+            ValueListenableBuilder<String>(
+              valueListenable: statusNotifier,
+              builder: (context, status, child) {
+                return Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      _getStatusIcon(status),
+                      size: 16,
+                      color: AppColors.draculaComment,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      status,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: AppColors.draculaComment,
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  IconData _getStatusIcon(String status) {
+    if (status.contains('Fetching')) return Icons.download_outlined;
+    if (status.contains('Finding')) return Icons.search;
+    if (status.contains('M3U8')) return Icons.playlist_play;
+    if (status.contains('Initializing')) return Icons.hourglass_empty;
+    return Icons.sync;
   }
 }
