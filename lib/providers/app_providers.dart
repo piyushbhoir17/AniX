@@ -10,6 +10,7 @@ import '../data/models/download_task.dart';
 import '../data/models/app_settings.dart';
 import '../data/services/download_manager.dart';
 import '../data/services/scraper_service.dart';
+import '../data/services/search_service.dart';
 import '../data/services/storage_service.dart';
 
 // ============ Repository Providers ============
@@ -22,6 +23,7 @@ final settingsRepositoryProvider = Provider((ref) => SettingsRepository.instance
 // ============ Service Providers ============
 
 final scraperServiceProvider = Provider((ref) => ScraperService.instance);
+final searchServiceProvider = Provider((ref) => SearchService.instance);
 final downloadManagerProvider = Provider((ref) => DownloadManager.instance);
 final storageServiceProvider = Provider((ref) => StorageService.instance);
 
@@ -151,5 +153,5 @@ final searchQueryProvider = StateProvider<String>((ref) => '');
 final searchResultsProvider = FutureProvider<List<Anime>>((ref) async {
   final query = ref.watch(searchQueryProvider);
   if (query.isEmpty) return [];
-  return ref.read(animeRepositoryProvider).search(query);
+  return ref.read(searchServiceProvider).searchAnime(query);
 });

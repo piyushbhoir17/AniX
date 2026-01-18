@@ -18,7 +18,15 @@ class StorageService {
   /// Initialize storage service
   Future<void> initialize() async {
     final settings = await SettingsRepository.instance.getSettings();
-    if (settings.safFolderUri != null) {
+    final paths = await Saf.getPersistedPermissionDirectories();
+
+    if (paths != null && paths.isNotEmpty) {
+      _downloadBasePath = paths.first;
+      settings.safFolderUri = paths.first;
+      settings.downloadPath = paths.first;
+      settings.storagePermissionGranted = true;
+      await SettingsRepository.instance.saveSettings(settings);
+    } else if (settings.safFolderUri != null) {
       _downloadBasePath = settings.downloadPath;
     }
   }
@@ -57,7 +65,11 @@ class StorageService {
   Future<bool> hasSafPermission() async {
     try {
       final paths = await Saf.getPersistedPermissionDirectories();
-      return paths != null && paths.isNotEmpty;
+      final hasPermission = paths != null && paths.isNotEmpty;
+      if (hasPermission) {
+        _downloadBasePath = paths!.first;
+      }
+      return hasPermission;
     } catch (e) {
       return false;
     }

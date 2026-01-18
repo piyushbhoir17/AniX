@@ -53,6 +53,9 @@ dependencies:
   flutter_animate: ^4.5.2
   shimmer: ^3.0.0
 
+  # HTML parsing
+  html: ^0.15.4
+
   # HTTP
   http: ^1.2.2
 

@@ -8,6 +8,7 @@ class AppConstants {
   static const String packageName = 'com.sleepy.anix';
 
   // Scraper
+  static const String baseUrl = 'https://watchanimeworld.net';
   static const String userAgent =
       'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36';
   static const Duration networkTimeout = Duration(seconds: 30);
