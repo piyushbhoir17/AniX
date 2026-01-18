@@ -160,7 +160,7 @@ class _AnimeDetailsScreenState extends ConsumerState<AnimeDetailsScreen> {
           final customPlaylist = M3U8Parser.buildCustomMasterPlaylist(
             videoStream: selection.videoStream,
             audioTrack: selection.audioTrack,
-            baseDomain: masterPlaylist.baseDomain,
+            baseDomain: masterPlaylist.baseDomain ?? '',
           );
           
           // Write to temp file for media_kit to read
@@ -183,7 +183,7 @@ class _AnimeDetailsScreenState extends ConsumerState<AnimeDetailsScreen> {
           final customPlaylist = M3U8Parser.buildCustomMasterPlaylist(
             videoStream: masterPlaylist.videoStreams.first,
             audioTrack: masterPlaylist.audioTracks.first,
-            baseDomain: masterPlaylist.baseDomain,
+            baseDomain: masterPlaylist.baseDomain ?? '',
           );
           
           final tempDir = await getTemporaryDirectory();
