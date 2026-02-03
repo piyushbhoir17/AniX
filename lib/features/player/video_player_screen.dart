@@ -46,9 +46,11 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
   bool _showControls = true;
   bool _isBuffering = false;
   bool _isSeeking = false;
+
   Duration _position = Duration.zero;
   Duration _duration = Duration.zero;
   Duration _seekPosition = Duration.zero;
+
   bool _isPlaying = false;
   double _playbackSpeed = 1.0;
 
@@ -62,7 +64,7 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
   Future<void> _initPlayer() async {
     _player = Player(
       configuration: const PlayerConfiguration(
-        bufferSize: 64 * 1024 * 1024, // 64MB buffer
+        bufferSize: 64 * 1024 * 1024, // 64MB
         logLevel: MPVLogLevel.warn,
       ),
     );
@@ -101,9 +103,7 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
       await _player.seek(Duration(seconds: widget.startPosition!));
     }
 
-    if (mounted) {
-      setState(() => _isInitialized = true);
-    }
+    if (mounted) setState(() => _isInitialized = true);
   }
 
   void _setLandscapeMode() {
@@ -123,7 +123,6 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
   }
 
   Future<void> _saveProgress() async {
-    // Save progress every 5 seconds
     if (_position.inSeconds % 5 == 0) {
       await EpisodeRepository.instance.updateWatchProgress(
         widget.animeId,
@@ -209,7 +208,6 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            // Video
             Center(
               child: _isInitialized
                   ? Video(
@@ -218,16 +216,12 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
                     )
                   : const CircularProgressIndicator(),
             ),
-
-            // Buffering indicator
             if (_isBuffering)
               const Center(
                 child: CircularProgressIndicator(
                   color: AppColors.draculaPurple,
                 ),
               ),
-
-            // Controls overlay
             if (_showControls) _buildControlsOverlay(),
           ],
         ),
@@ -291,7 +285,7 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
                 Text(
                   'Episode ${widget.episodeNumber}: ${widget.episodeTitle}',
                   style: TextStyle(
-                    color: Colors.white.withOpacity(0.7),
+                    color: Colors.white70,
                     fontSize: 14,
                   ),
                   maxLines: 1,
@@ -321,15 +315,12 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        // Rewind 10s
         IconButton(
           iconSize: 40,
           icon: const Icon(Icons.replay_10, color: Colors.white),
           onPressed: () => _player.seek(_position - const Duration(seconds: 10)),
         ),
         const SizedBox(width: 32),
-
-        // Play/Pause
         IconButton(
           iconSize: 64,
           icon: Icon(
@@ -339,8 +330,6 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
           onPressed: () => _player.playOrPause(),
         ),
         const SizedBox(width: 32),
-
-        // Forward 10s
         IconButton(
           iconSize: 40,
           icon: const Icon(Icons.forward_10, color: Colors.white),
@@ -355,7 +344,6 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
       padding: const EdgeInsets.all(16),
       child: Column(
         children: [
-          // Progress bar
           Row(
             children: [
               Text(
@@ -403,9 +391,7 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
                         seconds: (value * _duration.inSeconds).round(),
                       );
                       _player.seek(newPosition);
-                      setState(() {
-                        _isSeeking = false;
-                      });
+                      setState(() => _isSeeking = false);
                     },
                   ),
                 ),
@@ -417,14 +403,10 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
               ),
             ],
           ),
-
           const SizedBox(height: 8),
-
-          // Bottom buttons row
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              // Playback speed
               TextButton(
                 onPressed: _showSpeedSheet,
                 child: Text(
@@ -432,23 +414,18 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
                   style: const TextStyle(color: Colors.white),
                 ),
               ),
-
               Row(
                 children: [
-                  // Previous episode
                   IconButton(
                     icon: const Icon(Icons.skip_previous, color: Colors.white),
                     onPressed: widget.episodeNumber > 1 ? _previousEpisode : null,
                   ),
-                  // Next episode
                   IconButton(
                     icon: const Icon(Icons.skip_next, color: Colors.white),
                     onPressed: _nextEpisode,
                   ),
                 ],
               ),
-
-              // Fit screen button
               IconButton(
                 icon: const Icon(Icons.fit_screen, color: Colors.white),
                 onPressed: () {},
@@ -469,31 +446,8 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Settings',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
+            Text('Settings', style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 16),
-            if (widget.masterPlaylist != null) ...[
-              ListTile(
-                leading: const Icon(Icons.high_quality),
-                title: const Text('Quality'),
-                subtitle: const Text('Auto'),
-                onTap: () {
-                  Navigator.pop(context);
-                  _showQualitySheet();
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.language),
-                title: const Text('Audio'),
-                subtitle: const Text('Hindi'),
-                onTap: () {
-                  Navigator.pop(context);
-                  _showAudioSheet();
-                },
-              ),
-            ],
             ListTile(
               leading: const Icon(Icons.speed),
               title: const Text('Playback Speed'),
@@ -520,10 +474,8 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Playback Speed',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
+            Text('Playback Speed',
+                style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 16),
             ...speeds.map(
               (speed) => RadioListTile<double>(
@@ -545,14 +497,6 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
     );
   }
 
-  void _showQualitySheet() {
-    // TODO: quality switch
-  }
-
-  void _showAudioSheet() {
-    // TODO: audio switch
-  }
-
   void _previousEpisode() {
     Navigator.pop(context);
   }
@@ -561,4 +505,3 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
     Navigator.pop(context);
   }
 }
-```0
