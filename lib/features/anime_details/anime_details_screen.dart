@@ -250,8 +250,7 @@ class _AnimeDetailsScreenState extends ConsumerState<AnimeDetailsScreen> {
   Widget _buildContent(BuildContext context, AnimeDetail detail) {
     final anime = detail.anime;
     final seasons = detail.episodesBySeason;
-    final seasonKeys = 
-    seasons.keys.toList()..sort(_compareSeasons);
+    final seasonKeys = seasons.keys.toList()..sort(_compareSeasons);
     final hasSeasons = seasonKeys.isNotEmpty;
     
     // Initialize selected season if not set
