@@ -210,7 +210,21 @@ class _AnimeDetailsScreenState extends ConsumerState<AnimeDetailsScreen> {
         }
       }
 
-      
+      // Navigate to video player
+      if (mounted) {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => VideoPlayerScreen(
+              animeId: anime.animeId,
+              animeTitle: anime.title,
+              episodeNumber: episode.episodeNumber,
+              episodeTitle: episode.title,
+              videoUrl: videoUrl,
+              masterPlaylist: masterPlaylist,
+              startPosition: episode.watchedPosition > 0 ? episode.watchedPosition : null,
+            ),
+          ),
+        );
       }
     } catch (e) {
       AppLogger.e('Failed to load episode', e);
