@@ -11,7 +11,6 @@ import '../../data/database/repositories/episode_repository.dart';
 import '../../data/models/m3u8_models.dart';
 import '../../data/services/download_manager.dart';
 
-/// Video player screen with custom controls
 class VideoPlayerScreen extends ConsumerStatefulWidget {
   final String animeId;
   final String animeTitle;
@@ -20,7 +19,7 @@ class VideoPlayerScreen extends ConsumerStatefulWidget {
   final String videoUrl;
   final bool isOffline;
   final MasterPlaylist? masterPlaylist;
-  final int? startPosition; // Resume position in seconds
+  final int? startPosition;
 
   const VideoPlayerScreen({
     super.key,
@@ -57,14 +56,14 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
   @override
   void initState() {
     super.initState();
-    _initPlayer();
     _setLandscapeMode();
+    _initPlayer();
   }
 
   Future<void> _initPlayer() async {
     _player = Player(
       configuration: const PlayerConfiguration(
-        bufferSize: 64 * 1024 * 1024, // 64MB
+        bufferSize: 64 * 1024 * 1024,
         logLevel: MPVLogLevel.warn,
       ),
     );
@@ -123,7 +122,7 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
   }
 
   Future<void> _saveProgress() async {
-    if (_position.inSeconds % 5 == 0) {
+    if (_position.inSeconds > 0 && _position.inSeconds % 5 == 0) {
       await EpisodeRepository.instance.updateWatchProgress(
         widget.animeId,
         widget.episodeNumber,
@@ -149,14 +148,14 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
 
     if (widget.masterPlaylist == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('DEBUG: playlist is null')),
+        const SnackBar(content: Text('Download not available (playlist missing)')),
       );
       return;
     }
 
     if (widget.masterPlaylist!.videoStreams.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No stream found')),
+        const SnackBar(content: Text('No video streams found')),
       );
       return;
     }
@@ -284,7 +283,7 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
                 ),
                 Text(
                   'Episode ${widget.episodeNumber}: ${widget.episodeTitle}',
-                  style: TextStyle(
+                  style: const TextStyle(
                     color: Colors.white70,
                     fontSize: 14,
                   ),
@@ -294,14 +293,10 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
               ],
             ),
           ),
-
-          // Download button
           IconButton(
             icon: const Icon(Icons.download, color: Colors.white),
             onPressed: _startDownload,
           ),
-
-          // Settings button
           IconButton(
             icon: const Icon(Icons.settings, color: Colors.white),
             onPressed: _showSettingsSheet,
@@ -362,10 +357,8 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
                     inactiveTrackColor: Colors.white24,
                     thumbColor: AppColors.draculaPurple,
                     trackHeight: 4,
-                    thumbShape:
-                        const RoundSliderThumbShape(enabledThumbRadius: 8),
-                    overlayShape:
-                        const RoundSliderOverlayShape(overlayRadius: 16),
+                    thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
+                    overlayShape: const RoundSliderOverlayShape(overlayRadius: 16),
                   ),
                   child: Slider(
                     value: _duration.inSeconds > 0
@@ -373,7 +366,7 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
                                 _duration.inSeconds)
                             .clamp(0.0, 1.0)
                         : 0.0,
-                    onChangeStart: (value) {
+                    onChangeStart: (_) {
                       setState(() {
                         _isSeeking = true;
                         _seekPosition = _position;
@@ -474,8 +467,7 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Playback Speed',
-                style: Theme.of(context).textTheme.titleLarge),
+            Text('Playback Speed', style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 16),
             ...speeds.map(
               (speed) => RadioListTile<double>(
@@ -505,3 +497,4 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
     Navigator.pop(context);
   }
 }
+```0
