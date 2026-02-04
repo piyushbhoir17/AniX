@@ -149,7 +149,7 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
 
     if (widget.masterPlaylist == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Download not available')),
+        const SnackBar(content: Text('DEBUG: playlist is null')),
       );
       return;
     }
