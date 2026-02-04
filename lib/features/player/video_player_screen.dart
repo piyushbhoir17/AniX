@@ -490,11 +490,10 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
   }
 
   void _previousEpisode() {
-    Navigator.pop(context);
-  }
-
-  void _nextEpisode() {
-    Navigator.pop(context);
-  }
+  Navigator.pop(context);
 }
-``0`1
+
+void _nextEpisode() {
+  Navigator.pop(context);
+}
+}
