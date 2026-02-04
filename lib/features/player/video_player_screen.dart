@@ -174,7 +174,7 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
         animeTitle: widget.animeTitle,
         episodeNumber: widget.episodeNumber,
         episodeTitle: widget.episodeTitle,
-        masterM3u8Url: widget.videoUrl,
+        masterM3u8Url: widget.masterPlaylist!.masterUrl,
         selection: selection,
       );
 
