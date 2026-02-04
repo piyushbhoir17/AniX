@@ -210,22 +210,7 @@ class _AnimeDetailsScreenState extends ConsumerState<AnimeDetailsScreen> {
         }
       }
 
-      // Navigate to video player
-      if (mounted) {
-        Navigator.of(context).push(
-  MaterialPageRoute(
-    builder: (context) => VideoPlayerScreen(
-      animeId: anime.animeId,
-      animeTitle: anime.title,
-      episodeNumber: episode.episodeNumber,
-      episodeTitle: episode.title,
-      videoUrl: videoUrl,
-      masterPlaylist: masterPlaylist,
-      startPosition: episode.watchedPosition > 0 ? episode.watchedPosition : null,
-    ),
-  ),
-);
-```0
+      
       }
     } catch (e) {
       AppLogger.e('Failed to load episode', e);
@@ -251,7 +236,23 @@ class _AnimeDetailsScreenState extends ConsumerState<AnimeDetailsScreen> {
   Widget _buildContent(BuildContext context, AnimeDetail detail) {
     final anime = detail.anime;
     final seasons = detail.episodesBySeason;
-    final seasonKeys = seasons.keys.toList()..sort(_compareSeasons);
+    final seasonKeys = seasons.key// Navigate to video player
+if (mounted) {
+  Navigator.of(context).push(
+    MaterialPageRoute(
+      builder: (context) => VideoPlayerScreen(
+        animeId: anime.animeId,
+        animeTitle: anime.title,
+        episodeNumber: episode.episodeNumber,
+        episodeTitle: episode.title,
+        videoUrl: videoUrl,
+        masterPlaylist: masterPlaylist,
+        startPosition: episode.watchedPosition > 0 ? episode.watchedPosition : null,
+      ),
+    ),
+  );
+}
+    s.toList()..sort(_compareSeasons);
     final hasSeasons = seasonKeys.isNotEmpty;
     
     // Initialize selected season if not set
