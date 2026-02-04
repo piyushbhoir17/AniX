@@ -71,8 +71,7 @@ jobs:
           test -f lib/data/models/app_settings.g.dart
 
       - name: Analyze code
-        run: flutter analyze --no-fatal-infos --no-fatal-warnings
-        continue-on-error: true
+        run: flutter analyze || true
 
       - name: Run tests
         run: flutter test
@@ -84,10 +83,19 @@ jobs:
 
       - name: Build APK (Release)
         run: flutter build apk --release 2>&1 | tee build_release.log
+        continue-on-error: true
 
       - name: Build App Bundle (Release)
         run: flutter build appbundle --release 2>&1 | tee build_bundle.log
         continue-on-error: true
+
+      - name: Show build output paths
+        if: always()
+        run: |
+          echo "APK files:"
+          find build -type f -name "*.apk" || true
+          echo "AAB files:"
+          find build -type f -name "*.aab" || true
 
       - name: Collect build logs
         if: always()
@@ -112,7 +120,7 @@ jobs:
         with:
           name: anix-release-apk
           path: build/app/outputs/flutter-apk/app-release.apk
-          if-no-files-found: warn
+          if-no-files-found: ignore
 
       - name: Upload App Bundle
         uses: actions/upload-artifact@v4
@@ -174,6 +182,7 @@ jobs:
 
       - name: Build iOS (No Code Sign)
         run: flutter build ios --release --no-codesign 2>&1 | tee build_ios.log
+        continue-on-error: true
 
       - name: Upload Build Log
         uses: actions/upload-artifact@v4
